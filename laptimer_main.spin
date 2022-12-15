@@ -17,8 +17,6 @@ CON
   ADB_PIN = 1 << 4
   ADC_PIN = 1 << 14
   ADD_PIN = 1 << 2
-  RGB1OFFSET = 22
-  RGB2OFFSET = 18
 
 
 VAR
@@ -135,13 +133,13 @@ next_row
 next_batch
             ' output rows
             rdlong  toprow, toprowaddr
-            mov     pixcnt, #4
-            add     toprowaddr, #4
-
-            rdlong  botrow, botrowaddr
             add     botrowaddr, #4
 
+            rdlong  botrow, botrowaddr
+            add     toprowaddr, #4
+
 next_pix
+      ' first pixel in batch
             shl     toprow, #1 wc
       if_c  or      OUTA, red1
             shl     botrow, #1 wc
@@ -156,14 +154,65 @@ next_pix
       if_c  or      OUTA, blue1
             shl     botrow, #1 wc
       if_c  or      OUTA, blue2
-
+      ' activate clock to send pixel
             or      OUTA, tick
             and     OUTA, tock
-            sub     pixcnt, #1 wz
-      if_nz jmp     #next_pix
+      ' second pixel in batch
+            shl     toprow, #1 wc
+      if_c  or      OUTA, red1
+            shl     botrow, #1 wc
+      if_c  or      OUTA, red2
 
-            sub     batchcnt, #1 wz
-      if_nz jmp     #next_batch
+            shl     toprow, #1 wc
+      if_c  or      OUTA, green1
+            shl     botrow, #1 wc
+      if_c  or      OUTA, green2
+
+            shl     toprow, #1 wc
+      if_c  or      OUTA, blue1
+            shl     botrow, #1 wc
+      if_c  or      OUTA, blue2
+      ' activate clock to send pixel
+            or      OUTA, tick
+            and     OUTA, tock
+      ' third pixel in batch
+            shl     toprow, #1 wc
+      if_c  or      OUTA, red1
+            shl     botrow, #1 wc
+      if_c  or      OUTA, red2
+
+            shl     toprow, #1 wc
+      if_c  or      OUTA, green1
+            shl     botrow, #1 wc
+      if_c  or      OUTA, green2
+
+            shl     toprow, #1 wc
+      if_c  or      OUTA, blue1
+            shl     botrow, #1 wc
+      if_c  or      OUTA, blue2
+      ' activate clock to send pixel
+            or      OUTA, tick
+            and     OUTA, tock
+      ' fourth pixel in batch
+            shl     toprow, #1 wc
+      if_c  or      OUTA, red1
+            shl     botrow, #1 wc
+      if_c  or      OUTA, red2
+
+            shl     toprow, #1 wc
+      if_c  or      OUTA, green1
+            shl     botrow, #1 wc
+      if_c  or      OUTA, green2
+
+            shl     toprow, #1 wc
+      if_c  or      OUTA, blue1
+            shl     botrow, #1 wc
+      if_c  or      OUTA, blue2
+      ' activate clock to send pixel
+            or      OUTA, tick
+            and     OUTA, tock
+      ' proceed to next batch of pixels
+            djnz    batchcnt, #next_batch
 
             and     OUTA, enable        ' enable output
             waitcnt waitfor, addr_wait  ' allow pixels to shine
