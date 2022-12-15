@@ -2,8 +2,8 @@ CON
 
   _CLKMODE = XTAL1 + PLL16X
   _CLKFREQ = 80_000_000
-  D1_SENSOR = 4
-  D2_SENSOR = 5
+  D1_SENSOR = 1 << 4
+  D2_SENSOR = 1 << 5
   OE_PIN = 1 << 6
   LATCH_PIN = 1 << 7
   R1_PIN = 1 << 8
@@ -21,9 +21,18 @@ CON
 VAR
 
   long SystemTime
+  
+  long d1LapNum
+  long d1LastTime
+  long d1BestTime
+  
+  long d2LapNum
+  long d2LastTime
+  long d2BestTime
+  
   long pixels[256]
   
-PUB Start | n
+PUB Start
   ' Things that need to happen:
   '  1) Start time keeper core
   '  2) Start display driver core
@@ -31,9 +40,30 @@ PUB Start | n
   '  4) Start driver 1 monitor core
   '  5) Start driver 2 monitor core
   '  6) Start monitoring for user input
+  '  
+  ' for UI manager: keep a global 'mode' variable that determines if we're in 
+  ' timing laps, racing, or in the UI. This will determine our priorities
 
   cognew(@time_keeper, @SystemTime)
   cognew(@display_driver, @pixels)
+  cognew(@ui_manager, 0)
+  
+  systime_adr  := @SystemTime
+  
+  sensor_pin   := D1_SENSOR
+  lastlap_adr  := @d1LastTime
+  bestlap_adr  := @d1BestTime
+  lapcnt_adr   := @d1LapNum
+  cognew(@driver_monitor, 0)
+  
+  waitcnt(20000 + cnt)  ' allow ample time for cog to initialize
+  
+  sensor_pin   := D2_SENSOR
+  lastlap_adr  := @d2LastTime
+  bestlap_adr  := @d2BestTime
+  lapcnt_adr   := @d2LapNum
+  cognew(@driver_monitor, 0)
+  
 
 DAT TimeKeeper
 
@@ -119,4 +149,45 @@ toprow      res     1
 botrow      res     1
 toprowaddr  res     1
 botrowaddr  res     1
+            fit
+            
+DAT DriverMonitor
+
+            org     0
+driver_monitor
+            rdlong  lapstart, systime_adr
+
+monitor_loop
+            waitpne sensorPin, sensorPin
+            
+            rdlong  lastlap, systime_adr
+            mov     temp, lastlap
+            sub     lastlap, lapstart
+            mov     lapstart, temp
+            
+            test    bestlap, bestlap    wz
+    if_z    mov     bestlap, lastlap
+    
+            cmp     lastlap, bestlap    wc
+    if_c    mov     bestlap, lastlap
+    
+            add     lapcnt, #1
+            
+            wrlong  lastlap, lastlap_adr
+            wrlong  bestlap, bestlap_adr
+            wrlong  lapcnt, lapcnt_adr
+            
+            jmp     monitor_loop
+            
+            
+sensor_pin  long    0
+lastlap_adr long    0
+bestlap_adr long    0
+lapcnt_adr  long    0
+systime_adr long    0
+lapcnt      long    0
+bestlap     long    0
+lastlap     res     1
+lapstart    res     1
+temp        res     1
             fit
