@@ -52,7 +52,13 @@ PUB Start | i
   repeat i from 16 to 17
     pixels[i] := %100_010_001_111__000_000_000_000__0000_0000
   repeat i from 256 to 258
-    pixels[i] := %100_010_001_000__000_000_000_000__0000_0000
+    pixels[i] := %000_001_010_011__000_000_000_000__0000_0000
+
+  pixels[128] := %000_001_010_011__000_000_000_000__0000_0000
+  pixels[256+16] := %000_001_010_011__000_000_000_000__0000_0000
+  pixels[256+8] := %000_001_010_011__000_000_000_000__0000_0000
+  pixels[256+24] := %100_101_110_111__000_000_000_000__0000_0000
+  pixels[511] := %000_001_010_011__000_000_000_000__0000_0000
 
   cognew(@display_driver, @pixels)
   ' cognew(@ui_manager, 0)
@@ -129,6 +135,7 @@ next_row
 
             mov     toprowaddr, botrowaddr
             sub     toprowaddr, row_offset
+            sub     botrowaddr, #4
             mov     batchcnt, #16
 next_batch
             ' output rows
