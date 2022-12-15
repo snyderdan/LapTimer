@@ -31,9 +31,9 @@ VAR
   long d2LastTime
   long d2BestTime
 
-  long pixels[512]
+  long pixels[1024]
 
-PUB Start | i
+PUB Start | i, pixptr
   ' Things that need to happen:
   '  1) Start time keeper core
   '  2) Start display driver core
@@ -46,19 +46,14 @@ PUB Start | i
   ' timing laps, racing, or in the UI. This will determine our priorities
 
   ' cognew(@time_keeper, @SystemTime)
-
-  repeat i from 1 to 2
-    pixels[i] := %100_010_001_111__000_000_000_000__0000_0000
-  repeat i from 16 to 17
-    pixels[i] := %100_010_001_111__000_000_000_000__0000_0000
-  repeat i from 256 to 258
-    pixels[i] := %000_001_010_011__000_000_000_000__0000_0000
-
-  pixels[128] := %000_001_010_011__000_000_000_000__0000_0000
-  pixels[256+16] := %000_001_010_011__000_000_000_000__0000_0000
-  pixels[256+8] := %000_001_010_011__000_000_000_000__0000_0000
-  pixels[256+24] := %100_101_110_111__000_000_000_000__0000_0000
-  pixels[511] := %000_001_010_011__000_000_000_000__0000_0000
+  pixptr := @pixels
+  repeat i from 1 to 4
+    word[pixptr][i] := %00001_00001_00001
+  repeat i from 16 to 18
+    word[pixptr][i] := %00000_00001_00001
+  repeat i from 1080 to 1090
+    word[pixptr][i] := %00001_00001_00001
+  word[pixptr][2047] := %00001_00001_00001
 
   cognew(@display_driver, @pixels)
   ' cognew(@ui_manager, 0)
@@ -108,13 +103,11 @@ display_driver
 
             mov     waitfor, frame_wait
             add     waitfor, cnt
-
 next_row
             ' do row checks
             or      OUTA, disable       ' disable output before switch
             add     row_addr, #1
-            cmp     row_addr, #16   wz
-      if_z  xor     row_addr, row_addr
+            and     row_addr, #%1111
 
             test    row_addr, #1    wz
             muxz    OUTA, addr_a
@@ -128,94 +121,67 @@ next_row
 
             waitcnt waitfor, frame_wait ' need to wait approximately 1µS for address switch
 
-            mov     botrowaddr, #31
-            sub     botrowaddr, row_addr
-            shl     botrowaddr, #6
-            add     botrowaddr, pixeladdr
+next_plane  ' next 'plane' of color depth for binary coded modulation
+            mov     toprowaddr, row_addr
+            shl     toprowaddr, #7        ' multiply by 128 (64 words/row * 2 bytes/word)
+            add     toprowaddr, pixeladdr ' add base address of pixels
+            add     toprowaddr, #124      ' move to end of row
 
-            mov     toprowaddr, botrowaddr
-            sub     toprowaddr, row_offset
-            sub     botrowaddr, #4
-            mov     batchcnt, #16
+            mov     botrowaddr, toprowaddr
+            add     botrowaddr, row_offset
+            mov     batchcnt, #32
 next_batch
             ' output rows
             rdlong  toprow, toprowaddr
-            add     botrowaddr, #4
+            sub     toprowaddr, #4
+            mov     R0, toprow
 
             rdlong  botrow, botrowaddr
-            add     toprowaddr, #4
+            sub     botrowaddr, #4
+            mov     R1, botrow
 
-next_pix
-      ' first pixel in batch
-            shl     toprow, #1 wc
-      if_c  or      OUTA, red1
-            shl     botrow, #1 wc
-      if_c  or      OUTA, red2
+            shr     R0, #16
+            shl     toprow, #16
+            or      toprow, R0
 
-            shl     toprow, #1 wc
-      if_c  or      OUTA, green1
-            shl     botrow, #1 wc
-      if_c  or      OUTA, green2
+            shr     R1, #16
+            shl     botrow, #16
+            or      botrow, R1
 
-            shl     toprow, #1 wc
-      if_c  or      OUTA, blue1
-            shl     botrow, #1 wc
+next_pix    ' first pixel (right)
+            shr     toprow, #5 wc
       if_c  or      OUTA, blue2
-      ' activate clock to send pixel
+            shr     toprow, #5 wc
+      if_c  or      OUTA, green2
+            shr     toprow, #5 wc
+      if_c  or      OUTA, red2
+            shr     toprow, #1
+
+            shr     botrow, #5 wc
+      if_c  or      OUTA, blue1
+            shr     botrow, #5 wc
+      if_c  or      OUTA, green1
+            shr     botrow, #5 wc
+      if_c  or      OUTA, red1
+            shr     botrow, #1
+
             or      OUTA, tick
             and     OUTA, tock
-      ' second pixel in batch
-            shl     toprow, #1 wc
-      if_c  or      OUTA, red1
-            shl     botrow, #1 wc
+            ' second pixel (left)
+            shr     toprow, #5 wc
+      if_c  or      OUTA, blue2
+            shr     toprow, #5 wc
+      if_c  or      OUTA, green2
+            shr     toprow, #5 wc
       if_c  or      OUTA, red2
 
-            shl     toprow, #1 wc
-      if_c  or      OUTA, green1
-            shl     botrow, #1 wc
-      if_c  or      OUTA, green2
-
-            shl     toprow, #1 wc
+            shr     botrow, #5 wc
       if_c  or      OUTA, blue1
-            shl     botrow, #1 wc
-      if_c  or      OUTA, blue2
-      ' activate clock to send pixel
-            or      OUTA, tick
-            and     OUTA, tock
-      ' third pixel in batch
-            shl     toprow, #1 wc
+            shr     botrow, #5 wc
+      if_c  or      OUTA, green1
+            shr     botrow, #5 wc
       if_c  or      OUTA, red1
-            shl     botrow, #1 wc
-      if_c  or      OUTA, red2
 
-            shl     toprow, #1 wc
-      if_c  or      OUTA, green1
-            shl     botrow, #1 wc
-      if_c  or      OUTA, green2
-
-            shl     toprow, #1 wc
-      if_c  or      OUTA, blue1
-            shl     botrow, #1 wc
-      if_c  or      OUTA, blue2
-      ' activate clock to send pixel
-            or      OUTA, tick
-            and     OUTA, tock
-      ' fourth pixel in batch
-            shl     toprow, #1 wc
-      if_c  or      OUTA, red1
-            shl     botrow, #1 wc
-      if_c  or      OUTA, red2
-
-            shl     toprow, #1 wc
-      if_c  or      OUTA, green1
-            shl     botrow, #1 wc
-      if_c  or      OUTA, green2
-
-            shl     toprow, #1 wc
-      if_c  or      OUTA, blue1
-            shl     botrow, #1 wc
-      if_c  or      OUTA, blue2
-      ' activate clock to send pixel
             or      OUTA, tick
             and     OUTA, tock
       ' proceed to next batch of pixels
@@ -243,13 +209,14 @@ addr_a      long    ADA_PIN
 addr_b      long    ADB_PIN
 addr_c      long    ADC_PIN
 addr_d      long    ADD_PIN
-frame_wait  long    (_CLKFREQ / 2000)
-addr_wait   long    (_CLKFREQ / 1000000)
-row_offset  long    1024
+frame_wait  long    (_CLKFREQ / 10000)
+addr_wait   long    (_CLKFREQ / 1000)
+row_offset  long    2048
 zeros       long    0
 row_addr    long    0
 pixel_mask  long    $E000_0000
 r_ones      long    $FFFF_FFFF
+plane       res     1
 pixeladdr   res     1
 batchcnt    res     1
 pixcnt      res     1
@@ -261,6 +228,7 @@ waitfor     res     1
 R0          res     1
 R1          res     1
 R2          res     1
+row_data    res     32
             fit
 
 DAT DriverMonitor
