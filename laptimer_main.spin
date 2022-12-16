@@ -33,7 +33,7 @@ VAR
   long d2LapNum
   long d2LastTime
   long d2BestTime
-  long fontTable[5]
+  long fontTable[6]
 
   word pixels[2048]
 
@@ -59,6 +59,7 @@ PUB Start | i
   fontTable[2] := @font4x6
   fontTable[3] := @font5x7
   fontTable[4] := @font6x8
+  fontTable[5] := @font2x8
   font_table := @fontTable
   cognew(@ui_manager, @SystemTime)
 
@@ -107,38 +108,11 @@ DAT UIManager
 
             org     0
 ui_manager
-            mov     x, #40
-            mov     y, #0
-            mov     fontsize, #2
+
+            mov     fontsize, #4
             call    #set_font
-            mov     advance_x, #5
+            mov     advance_x, #7
             neg     advance_x, advance_x
-
-            rdlong  systime, PAR
-            mov     ttp, systime
-            call    #print_timer
-            jmp     #ui_manager
-
-
-            mov     char, #4
-            call    #drawchar
-
-            mov     char, #3
-            call    #drawchar
-
-            mov     advance_x, #2
-            neg     advance_x, advance_x
-            mov     char, #9
-            call    #drawchar
-
-            mov     advance_x, #5
-            neg     advance_x, advance_x
-            mov     fontsize, #1
-            call    #set_font
-            mov     char, #0
-            call    #drawchar
-
-donothing   jmp     #donothing
 loopy
             mov     x, #40
             mov     y, #0
@@ -155,7 +129,7 @@ print_timer
 
             ' draw 100's place of ms
             ' movi    advance, #%100001_001
-            mov     advance_x, #2
+            mov     advance_x, #3
             neg     advance_x, advance_x
             mov     dividend, quotient
             mov     divisor, #10
@@ -164,13 +138,13 @@ print_timer
             call    #drawchar
 
             ' draw .
-            mov     advance_x, #5
+            mov     advance_x, #7
             neg     advance_x, advance_x
-            mov     fontsize, #1
+            mov     fontsize, #5
             call    #set_font
             mov     char, #1
             call    #drawchar
-            mov     fontsize, #2
+            mov     fontsize, #4
             call    #set_font
 
             ' draw 1's place of seconds
@@ -179,7 +153,7 @@ print_timer
             mov     char, remainder
             call    #drawchar
 
-            mov     advance_x, #2
+            mov     advance_x, #3
             neg     advance_x, advance_x
             ' draw 10's place of seconds
             mov     dividend, quotient
@@ -189,13 +163,13 @@ print_timer
             call    #drawchar
 
             ' draw :
-            mov     advance_x, #5
+            mov     advance_x, #7
             neg     advance_x, advance_x
-            mov     fontsize, #1
+            mov     fontsize, #5
             call    #set_font
             mov     char, #0
             call    #drawchar
-            mov     fontsize, #2
+            mov     fontsize, #4
             call    #set_font
 
             ' draw minutes
@@ -610,5 +584,122 @@ font4x6
 font5x7
             byte    5, 7
 
+font2x8     byte    2, 8
+            byte    %0000_0000
+            byte    %1100_0000
+            byte    %1100_0000
+            byte    %0000_0000
+            byte    %0000_0000
+            byte    %1100_0000
+            byte    %1100_0000
+            byte    %0000_0000
+
+            byte    %0000_0000
+            byte    %0000_0000
+            byte    %0000_0000
+            byte    %0000_0000
+            byte    %0000_0000
+            byte    %0000_0000
+            byte    %1100_0000
+            byte    %1100_0000
+
+            byte    %0000_0000
+            byte    %0000_0000
+            byte    %0000_0000
+            byte    %0000_0000
+            byte    %0000_0000
+            byte    %0000_0000
+            byte    %0000_0000
+            byte    %0000_0000
+
 font6x8
             byte    6, 8
+            byte    %01111000
+            byte    %11001100
+            byte    %11001100
+            byte    %11001100
+            byte    %11001100
+            byte    %11001100
+            byte    %11001100
+            byte    %01111000
+
+            byte    %00110000
+            byte    %01110000
+            byte    %00110000
+            byte    %00110000
+            byte    %00110000
+            byte    %00110000
+            byte    %00110000
+            byte    %01111000
+
+            byte    %01111000
+            byte    %11001100
+            byte    %00001100
+            byte    %00011000
+            byte    %00110000
+            byte    %01100000
+            byte    %11000000
+            byte    %11111100
+
+            byte    %01111000
+            byte    %11001100
+            byte    %00001100
+            byte    %00111000
+            byte    %00001100
+            byte    %00001100
+            byte    %11001100
+            byte    %01111000
+
+            byte    %00011000
+            byte    %00110000
+            byte    %01100000
+            byte    %11000000
+            byte    %11011000
+            byte    %11111100
+            byte    %00011000
+            byte    %00011000
+
+            byte    %11111100
+            byte    %11000000
+            byte    %11000000
+            byte    %11111000
+            byte    %00001100
+            byte    %00001100
+            byte    %11001100
+            byte    %01111000
+
+            byte    %00011000
+            byte    %00110000
+            byte    %01100000
+            byte    %11000000
+            byte    %11111000
+            byte    %11001100
+            byte    %11001100
+            byte    %01111000
+
+            byte    %11111100
+            byte    %00001100
+            byte    %00001100
+            byte    %00011000
+            byte    %00110000
+            byte    %00110000
+            byte    %00110000
+            byte    %00110000
+
+            byte    %01111000
+            byte    %11001100
+            byte    %11001100
+            byte    %01111000
+            byte    %11001100
+            byte    %11001100
+            byte    %11001100
+            byte    %01111000
+
+            byte    %01111000
+            byte    %11001100
+            byte    %11001100
+            byte    %01111100
+            byte    %00001100
+            byte    %00011000
+            byte    %00110000
+            byte    %01100000
