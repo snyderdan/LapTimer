@@ -49,25 +49,18 @@ PUB Start | i
   ' for UI manager: keep a global 'mode' variable that determines if we're in
   ' timing laps, racing, or in the UI. This will determine our priorities
 
-  'pixels[65] := $0F00
   cognew(@time_keeper, @SystemTime)
   cognew(@display_driver, @pixels)
 
   _pixels := @pixels
-  fontTable[0] := @font3x5
-  fontTable[1] := @font1x6
+  fontTable[0] := @font4x5
+  fontTable[1] := 0
   fontTable[2] := @font4x6
   fontTable[3] := @font5x7
   fontTable[4] := @font6x8
-  fontTable[5] := @font2x8
+  fontTable[5] := 0
   font_table := @fontTable
   cognew(@ui_manager, @SystemTime)
-
-  'waitcnt(1000000+cnt)
-  'pixels[2] := $0F00
-
-  'waitcnt(10000000+cnt)
-  'pixels[453] := $00F0
 
   systime_adr  := @SystemTime
 
@@ -108,76 +101,120 @@ DAT UIManager
 
             org     0
 ui_manager
+            mov     fontsize, #0
+            mov     x, #10
+            call    #setfont
+            mov     char, #23
+            call    #drawchar
+            mov     char, #12
+            call    #drawchar
+            mov     char, #27
+            call    #drawchar
+            mov     char, #28
+            call    #drawchar
+            mov     char, #24
+            call    #drawchar
+            mov     char, #26
+            call    #drawchar
+            mov     char, #15
+            call    #drawchar
+            mov     char, #16
+            call    #drawchar
 
-            mov     fontsize, #4
-            call    #set_font
-            mov     advance_x, #7
-            neg     advance_x, advance_x
+            mov     x, #63
+            mov     y, #5
+            mov     color, yellow
+looper
+            sub     x, #1
+            call    #drawpixel
+            add     x, #1
+            djnz    x, #looper
+
 loopy
-            mov     x, #40
-            mov     y, #0
+            mov     fontsize, #4
+            call    #setfont
+            mov     x, #0
+            mov     y, #6
+            mov     color, white
+            rdlong  systime, PAR
+            mov     ttp, systime
+            call    #print_timer
+
+            mov     fontsize, #2
+            call    #setfont
+            mov     x, #0
+            mov     y, #15
+            mov     color, green
+            rdlong  systime, PAR
+            mov     ttp, systime
+            call    #print_timer
+
+            mov     fontsize, #0
+            call    #setfont
+            mov     x, #0
+            mov     y, #22
+            mov     color, blue
             rdlong  systime, PAR
             mov     ttp, systime
             call    #print_timer
             jmp     #loopy
 
 print_timer
+            cmp     ttp, time_limit  wc, wz
+      if_a  mov     ttp, time_limit
             ' remove 1's and 10's place of ms
             mov     dividend, ttp
             mov     divisor, #100
             call    #div
-
-            ' draw 100's place of ms
-            ' movi    advance, #%100001_001
-            mov     advance_x, #3
-            neg     advance_x, advance_x
+            ' compute 10ths of seconds
             mov     dividend, quotient
             mov     divisor, #10
             call    #div
-            mov     char, remainder
-            call    #drawchar
-
-            ' draw .
-            mov     advance_x, #7
-            neg     advance_x, advance_x
-            mov     fontsize, #5
-            call    #set_font
-            mov     char, #1
-            call    #drawchar
-            mov     fontsize, #4
-            call    #set_font
-
-            ' draw 1's place of seconds
+            mov     tenths_sec, remainder
+            ' compute seconds 1's place
             mov     dividend, quotient
             call    #div
-            mov     char, remainder
-            call    #drawchar
-
-            mov     advance_x, #3
-            neg     advance_x, advance_x
-            ' draw 10's place of seconds
+            mov     ones_sec, remainder
+            ' compute 10's of seconds and minutes
             mov     dividend, quotient
             mov     divisor, #6
             call    #div
-            mov     char, remainder
+            mov     tens_sec, remainder
+            mov     minutes, quotient
+            ' actually print time
+            mov     char, minutes   ' minutes
             call    #drawchar
 
-            ' draw :
-            mov     advance_x, #7
-            neg     advance_x, advance_x
-            mov     fontsize, #5
-            call    #set_font
-            mov     char, #0
+            mov     char, #10       ' :
             call    #drawchar
-            mov     fontsize, #4
-            call    #set_font
 
-            ' draw minutes
-            mov     char, quotient
+            mov     char, tens_sec  ' 10's of seconds
+            call    #drawchar
+
+            mov     char, ones_sec  ' 1's of seconds
+            call    #drawchar
+
+            mov     char, #11       ' .
+            call    #drawchar
+                                    ' tenths of seconds
+            mov     char, tenths_sec
             call    #drawchar
 print_timer_ret
             ret
+time_limit  long    599999
 ttp         long    0
+minutes     long    0
+tens_sec    long    0
+ones_sec    long    0
+tenths_sec  long    0
+hunths_sec  long    0
+thous_sec   long    0
+
+printstr
+            rdbyte  char, stringptr
+            add     stringptr, #1
+            call    #drawchar
+
 
 drawchar
             mov     R4, y
@@ -187,11 +224,15 @@ drawchar
             mov     value2, h          ' bytes per char
             call    #mult              ' calculate offset into chartable
             add     lineptr, value1    ' go to start of char
-
+            mov     temp_w, w
 y_loop
             rdbyte  line, lineptr      ' read line
             add     lineptr, #1        ' advance line ptr
-
+            mov     R0, line           ' copy line
+            and     R0, #%11    wz     ' length modifier?
+      if_z  jmp     #do_print          ' N - proceed
+            mov     w, R0              ' Y - get modified length
+do_print
             shl     line, #24          ' move bitmap to end of reg
             mov     xloop_cnt, w       ' horizontal pixel cnt
             mov     value1, y
@@ -213,21 +254,33 @@ x_loop
             djnz    yloop_cnt, #y_loop
 
             mov     y, R4
-            add     w, #1
-advance     add     x, advance_x
-            sub     w, #1
+            add     x, w
+            add     x, #1
+            mov     w, temp_w
 drawchar_ret
             ret
+
+drawpixel
+            mov     value1, y
+            mov     value2, #COLS
+            call    #mult
+            add     value1, x
+            shl     value1, #1
+            add     value1, _pixels
+            wrword  color, value1
+drawpixel_ret
+            ret
 ' parameters        %0000_RRRR_GGGG_BBBB
+stringptr   long    0
 color       long    $0000_0FFF
 char        long    1
 x           long    0
 y           long    0
 fontsize    long    0
-advance_x   long    0
 ' internal variables
 h           long    0
 w           long    0
+temp_w      long    0
 fonts       long    0
 chartable   long    0
 lineptr     long    0
@@ -238,7 +291,7 @@ yloop_cnt   long    0
 xloop_cnt   long    0
 font_table  long    0
 
-set_font
+setfont
             mov     R0, fontsize   ' font size corresponds to a char table
             shl     R0, #2         ' shift to long boundary
             add     R0, font_table ' add base address of ptr table
@@ -253,7 +306,7 @@ set_font
             mov     h, R0
             add     R1, #1
             mov     chartable, R1  ' save char table for selected font
-set_font_ret
+setfont_ret
             ret
 
 write_digit
@@ -292,6 +345,14 @@ divisor     long    0
 quotient    long    0
 remainder   long    0
 
+white       long    $0FFF
+red         long    $0F00
+green       long    $00F0
+blue        long    $000F
+yellow      long    $0FF0
+cyan        long    $00FF
+magenta     long    $0F0F
+
 systime     res     1
 R0          res     1
 R1          res     1
@@ -327,7 +388,7 @@ next_row
             test    row_addr, #8    wz
             muxz    OUTA, addr_d
 
-            waitcnt waitfor, frame_wait ' need to wait approximately 1µS for address switch
+            waitcnt waitfor, frame_wait ' need to wait approximately 1ï¿½S for address switch
 
 next_plane  ' next 'plane' of color depth for binary coded modulation
             mov     toprowaddr, row_addr
@@ -483,24 +544,391 @@ tmp         res     1
 DAT
 
             byte    "Starting here"
-font3x5
-            byte    3, 5
+font4x5
+            byte    4, 5
+            byte    %01100000
+            byte    %10010000
+            byte    %10010000
+            byte    %10010000
+            byte    %01100000
 
-font1x6
-            byte    1, 6
-            byte    %0000_0000
-            byte    %1000_0000
-            byte    %0000_0000
-            byte    %0000_0000
-            byte    %1000_0000
-            byte    %0000_0000
+            byte    %00100000
+            byte    %01100000
+            byte    %00100000
+            byte    %00100000
+            byte    %01110000
 
-            byte    %0000_0000
-            byte    %0000_0000
-            byte    %0000_0000
-            byte    %0000_0000
-            byte    %0000_0000
-            byte    %1000_0000
+            byte    %01100000
+            byte    %10010000
+            byte    %00100000
+            byte    %01000000
+            byte    %11110000
+
+            byte    %01100000
+            byte    %10010000
+            byte    %00100000
+            byte    %10010000
+            byte    %01100000
+
+            byte    %00100000
+            byte    %01010000
+            byte    %11110000
+            byte    %00010000
+            byte    %00010000
+
+            byte    %11110000
+            byte    %10000000
+            byte    %11100000
+            byte    %00010000
+            byte    %11100000
+
+            byte    %00100000
+            byte    %01000000
+            byte    %11100000
+            byte    %10010000
+            byte    %01100000
+
+            byte    %11110000
+            byte    %00100000
+            byte    %01000000
+            byte    %01000000
+            byte    %01000000
+
+            byte    %01100000
+            byte    %10010000
+            byte    %01100000
+            byte    %10010000
+            byte    %01100000
+
+            byte    %01100000
+            byte    %10010000
+            byte    %01110000
+            byte    %00010000
+            byte    %01100000
+
+            byte    %00000001
+            byte    %10000000
+            byte    %00000000
+            byte    %10000000
+            byte    %00000000
+
+            byte    %00000001
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %10000000
+
+            byte    %01100000
+            byte    %10010000
+            byte    %11110000
+            byte    %10010000
+            byte    %10010000
+
+            byte    %11100000
+            byte    %10010000
+            byte    %11100000
+            byte    %10010000
+            byte    %11100000
+
+            byte    %01110000
+            byte    %10000000
+            byte    %10000000
+            byte    %10000000
+            byte    %01110000
+
+            byte    %11100000
+            byte    %10010000
+            byte    %10010000
+            byte    %10010000
+            byte    %11100000
+
+            byte    %11110000
+            byte    %10000000
+            byte    %11000000
+            byte    %10000000
+            byte    %11110000
+
+            byte    %11110000
+            byte    %10000000
+            byte    %11100000
+            byte    %10000000
+            byte    %10000000
+
+            byte    %01110000
+            byte    %10000000
+            byte    %10110000
+            byte    %10010000
+            byte    %01110000
+
+            byte    %10010000
+            byte    %10010000
+            byte    %11110000
+            byte    %10010000
+            byte    %10010000
+
+            byte    %01110000
+            byte    %00100000
+            byte    %00100000
+            byte    %00100000
+            byte    %01110000
+
+            byte    %00010000
+            byte    %00010000
+            byte    %00010000
+            byte    %10010000
+            byte    %01100000
+
+            byte    %10010000
+            byte    %10100000
+            byte    %11000000
+            byte    %10100000
+            byte    %10010000
+
+            byte    %10000000
+            byte    %10000000
+            byte    %10000000
+            byte    %10000000
+            byte    %11110000
+
+            byte    %10010000
+            byte    %11110000
+            byte    %10010000
+            byte    %10010000
+            byte    %10010000
+
+            byte    %10010000
+            byte    %11010000
+            byte    %10110000
+            byte    %10010000
+            byte    %10010000
+
+            byte    %01100000
+            byte    %10010000
+            byte    %10010000
+            byte    %10010000
+            byte    %01100000
+
+            byte    %11100000
+            byte    %10010000
+            byte    %11100000
+            byte    %10000000
+            byte    %10000000
+
+            byte    %00000001
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %01000000
+            byte    %10100000
+            byte    %11100000
+            byte    %10100000
+            byte    %10100000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
 
 font4x6
             byte    4, 6
