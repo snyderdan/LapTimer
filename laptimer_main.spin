@@ -2,7 +2,7 @@ CON
 
   _CLKMODE = XTAL1 + PLL16X
   _CLKFREQ = 80_000_000
-  D1_SENSOR = 1 << 7
+  D1_SENSOR = 1 << 0
   D2_SENSOR = 1 << 5
   OE_PIN = 1 << 10
   LATCH_PIN = 1 << 0
@@ -27,17 +27,22 @@ VAR
   long SystemTime
 
   long d1LapNum
+  long d1LapStart
+  long d1DeltaTime
   long d1LastTime
   long d1BestTime
 
   long d2LapNum
+  long d2LapStart
+  long d2DeltaTime
   long d2LastTime
   long d2BestTime
+
   long fontTable[6]
 
   word pixels[2048]
 
-PUB Start | i
+PUB Start | i, states, tempTime
   ' Things that need to happen:
   '  1) Start time keeper core
   '  2) Start display driver core
@@ -63,20 +68,29 @@ PUB Start | i
   cognew(@ui_manager, @SystemTime)
 
   systime_adr  := @SystemTime
-
   sensor_pin   := D1_SENSOR
-  lastlap_adr  := @d1LastTime
-  bestlap_adr  := @d1BestTime
-  lapcnt_adr   := @d1LapNum
-  'cognew(@driver_monitor, 0)
+  cognew(@driver_monitor, @d1LapNum)
 
-  'waitcnt(20000 + cnt)  ' allow ample time for cog to initialize
+  waitcnt(20000 + cnt)  ' allow ample time for cog to initialize
 
   sensor_pin   := D2_SENSOR
   lastlap_adr  := @d2LastTime
   bestlap_adr  := @d2BestTime
   lapcnt_adr   := @d2LapNum
   'cognew(@driver_monitor, 0)
+
+  repeat
+    if (ina[1] == 1)
+       d1LapNum += 1
+       tempTime := SystemTime - d1LapStart
+       d1LapStart := SystemTime
+       if d1LastTime > 0
+         d1DeltaTime := d1LastTime - tempTime
+
+       d1LastTime := tempTime
+       if (d1LastTime < d1BestTime) or (d1BestTime == 0)
+         d1BestTime := d1LastTime
+       waitcnt(80000000 +cnt)
 
 
 DAT TimeKeeper
@@ -102,6 +116,7 @@ DAT UIManager
             org     0
 ui_manager
             mov     fontsize, #0
+            mov     y, #1
             mov     x, #10
             call    #setfont
             mov     char, #23
@@ -110,52 +125,67 @@ ui_manager
             call    #drawchar
             mov     char, #27
             call    #drawchar
-            mov     char, #28
+            mov     char, #38
+            call    #drawchar
+            mov     char, #31
+            call    #drawchar
+            mov     char, #20
             call    #drawchar
             mov     char, #24
             call    #drawchar
-            mov     char, #26
-            call    #drawchar
-            mov     char, #15
-            call    #drawchar
             mov     char, #16
+            call    #drawchar
+            mov     char, #29
             call    #drawchar
 
             mov     x, #63
-            mov     y, #5
+            mov     y, #8
             mov     color, yellow
-looper
+drawline
             sub     x, #1
             call    #drawpixel
             add     x, #1
-            djnz    x, #looper
+            djnz    x, #drawline
 
 loopy
             mov     fontsize, #4
             call    #setfont
             mov     x, #0
-            mov     y, #6
+            mov     y, #10
             mov     color, white
             rdlong  systime, PAR
+            mov     R0, d1params
+            add     R0, #4
+            rdlong  R0, R0
+            sub     systime, R0
             mov     ttp, systime
             call    #print_timer
 
             mov     fontsize, #2
             call    #setfont
-            mov     x, #0
-            mov     y, #15
-            mov     color, green
-            rdlong  systime, PAR
-            mov     ttp, systime
+            mov     x, #8
+            add     y, #9
+            mov     R0, d1params
+            add     R0, #16
+            rdlong  ttp, R0
             call    #print_timer
 
-            mov     fontsize, #0
-            call    #setfont
-            mov     x, #0
-            mov     y, #22
-            mov     color, blue
-            rdlong  systime, PAR
-            mov     ttp, systime
+            mov     color, green
+            mov     R0, d1params
+            add     R0, #8
+            rdlong  ttp, R0
+            shl     ttp, #1   wc, wz
+            sar     ttp, #1
+      if_c  mov     color, red
+      if_c  mov     char, #12
+      if_nc mov     color, green
+      if_nc mov     char, #13
+      if_z  mov     color, white
+      if_z  mov     char, #14
+            abs     ttp, ttp
+            mov     x, #4
+            add     y, #7
+            call    #drawchar
             call    #print_timer
             jmp     #loopy
 
@@ -353,6 +383,8 @@ yellow      long    $0FF0
 cyan        long    $00FF
 magenta     long    $0F0F
 
+d1params    long    0
+
 systime     res     1
 R0          res     1
 R1          res     1
@@ -504,6 +536,15 @@ DAT DriverMonitor
 
             org     0
 driver_monitor
+            mov     lapcnt_adr, PAR
+            add     PAR, #4
+            mov     lapstrt_adr, PAR
+            add     PAR, #4
+            mov     delta_adr, PAR
+            mov     lastlap_adr, PAR
+            add     PAR, #4
+            mov     bestlap_adr, PAR
+
             rdlong  lapstart, systime_adr
 
 monitor_loop
@@ -529,8 +570,11 @@ monitor_loop
             jmp     #monitor_loop
 
 
+neg_one     long    $FFFF_FFFF
 sensor_pin  long    0
 lastlap_adr long    0
+lapstrt_adr long    0
+delta_adr   long    0
 bestlap_adr long    0
 lapcnt_adr  long    0
 systime_adr long    0
@@ -560,8 +604,8 @@ font4x5
 
             byte    %01100000
             byte    %10010000
-            byte    %00100000
-            byte    %01000000
+            byte    %01100000
+            byte    %10000000
             byte    %11110000
 
             byte    %01100000
@@ -714,71 +758,71 @@ font4x5
             byte    %10000000
             byte    %10000000
 
-            byte    %00000001
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
+            byte    %01100000
+            byte    %10010000
+            byte    %10010000
+            byte    %10110000
+            byte    %01110000
 
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-            byte    %00000000
-
-            byte    %01000000
-            byte    %10100000
             byte    %11100000
+            byte    %10010000
+            byte    %11100000
+            byte    %10010000
+            byte    %10010000
+
+            byte    %01110000
+            byte    %10000000
+            byte    %01100000
+            byte    %00010000
+            byte    %11100000
+
+            byte    %01110000
+            byte    %00100000
+            byte    %00100000
+            byte    %00100000
+            byte    %00100000
+
+            byte    %10010000
+            byte    %10010000
+            byte    %10010000
+            byte    %10010000
+            byte    %01100000
+
+            byte    %10100011
             byte    %10100000
             byte    %10100000
+            byte    %10100000
+            byte    %01000000
+
+            byte    %10010000
+            byte    %10010000
+            byte    %10010000
+            byte    %11110000
+            byte    %10010000
+
+            byte    %10010000
+            byte    %10010000
+            byte    %01100000
+            byte    %10010000
+            byte    %10010000
+
+            byte    %10010000
+            byte    %10010000
+            byte    %01110000
+            byte    %00010000
+            byte    %01100000
+
+            byte    %11110000
+            byte    %00100000
+            byte    %01000000
+            byte    %10000000
+            byte    %11110000
+
+            byte    %00000010
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
 
             byte    %00000000
             byte    %00000000
@@ -1002,7 +1046,35 @@ font4x6
             byte    %0001_0000
             byte    %0110_0000
 
+            byte    %0000_0001
             byte    %0000_0000
+            byte    %1000_0000
+            byte    %0000_0000
+            byte    %1000_0000
+            byte    %0000_0000
+
+            byte    %0000_0001
+            byte    %0000_0000
+            byte    %0000_0000
+            byte    %0000_0000
+            byte    %0000_0000
+            byte    %1000_0000
+
+            byte    %0000_0011
+            byte    %0100_0000
+            byte    %1110_0000
+            byte    %0100_0000
+            byte    %0000_0000
+            byte    %0000_0000
+
+            byte    %0000_0011
+            byte    %0000_0000
+            byte    %1110_0000
+            byte    %0000_0000
+            byte    %0000_0000
+            byte    %0000_0000
+
+            byte    %0000_0011
             byte    %0000_0000
             byte    %0000_0000
             byte    %0000_0000
@@ -1011,34 +1083,6 @@ font4x6
 
 font5x7
             byte    5, 7
-
-font2x8     byte    2, 8
-            byte    %0000_0000
-            byte    %1100_0000
-            byte    %1100_0000
-            byte    %0000_0000
-            byte    %0000_0000
-            byte    %1100_0000
-            byte    %1100_0000
-            byte    %0000_0000
-
-            byte    %0000_0000
-            byte    %0000_0000
-            byte    %0000_0000
-            byte    %0000_0000
-            byte    %0000_0000
-            byte    %0000_0000
-            byte    %1100_0000
-            byte    %1100_0000
-
-            byte    %0000_0000
-            byte    %0000_0000
-            byte    %0000_0000
-            byte    %0000_0000
-            byte    %0000_0000
-            byte    %0000_0000
-            byte    %0000_0000
-            byte    %0000_0000
 
 font6x8
             byte    6, 8
@@ -1131,3 +1175,30 @@ font6x8
             byte    %00011000
             byte    %00110000
             byte    %01100000
+
+            byte    %00000001
+            byte    %00000000
+            byte    %10000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %10000000
+            byte    %00000000
+
+            byte    %00000001
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %10000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
