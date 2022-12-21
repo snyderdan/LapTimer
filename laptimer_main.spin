@@ -420,7 +420,7 @@ next_row
             test    row_addr, #8    wz
             muxz    OUTA, addr_d
 
-            waitcnt waitfor, frame_wait ' need to wait approximately 1�S for address switch
+            waitcnt waitfor, frame_wait ' need to wait approximately 1uS for address switch
 
 next_plane  ' next 'plane' of color depth for binary coded modulation
             mov     toprowaddr, row_addr
@@ -450,37 +450,37 @@ next_batch
             or      botrow, R11
 
 next_pix    ' first pixel (right)
-            shr     toprow, #5 wc
+            shr     toprow, #4 wc
       if_c  or      OUTA, blue2
-            shr     toprow, #5 wc
+            shr     toprow, #4 wc
       if_c  or      OUTA, green2
-            shr     toprow, #5 wc
+            shr     toprow, #4 wc
       if_c  or      OUTA, red2
             shr     toprow, #1
 
-            shr     botrow, #5 wc
+            shr     botrow, #4 wc
       if_c  or      OUTA, blue1
-            shr     botrow, #5 wc
+            shr     botrow, #4 wc
       if_c  or      OUTA, green1
-            shr     botrow, #5 wc
+            shr     botrow, #4 wc
       if_c  or      OUTA, red1
             shr     botrow, #1
 
             or      OUTA, tick
             and     OUTA, tock
             ' second pixel (left)
-            shr     toprow, #5 wc
+            shr     toprow, #4 wc
       if_c  or      OUTA, blue2
-            shr     toprow, #5 wc
+            shr     toprow, #4 wc
       if_c  or      OUTA, green2
-            shr     toprow, #5 wc
+            shr     toprow, #4 wc
       if_c  or      OUTA, red2
 
-            shr     botrow, #5 wc
+            shr     botrow, #4 wc
       if_c  or      OUTA, blue1
-            shr     botrow, #5 wc
+            shr     botrow, #4 wc
       if_c  or      OUTA, green1
-            shr     botrow, #5 wc
+            shr     botrow, #4 wc
       if_c  or      OUTA, red1
 
             or      OUTA, tick
@@ -1083,6 +1083,389 @@ font4x6
 
 font5x7
             byte    5, 7
+            byte    %00100000
+            byte    %00100000
+            byte    %00100000
+            byte    %00100000
+            byte    %00100000
+            byte    %00000000
+            byte    %00100000
+
+            byte    %01010000
+            byte    %01010000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %01010000
+            byte    %11111000
+            byte    %01010000
+            byte    %11111000
+            byte    %01010000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            // 0
+            byte    %01110000
+            byte    %10001000
+            byte    %10001000
+            byte    %10001000
+            byte    %10001000
+            byte    %10001000
+            byte    %01110000
+
+            byte    %00100000
+            byte    %01100000
+            byte    %00100000
+            byte    %00100000
+            byte    %00100000
+            byte    %00100000
+            byte    %01110000
+
+            byte    %01110000
+            byte    %10001000
+            byte    %00001000
+            byte    %00010000
+            byte    %00100000
+            byte    %01000000
+            byte    %11111000
+
+            byte    %01110000
+            byte    %10001000
+            byte    %00001000
+            byte    %00110000
+            byte    %00001000
+            byte    %10001000
+            byte    %01110000
+
+            byte    %00010000
+            byte    %00100000
+            byte    %01000000
+            byte    %10010000
+            byte    %11111000
+            byte    %00010000
+            byte    %00010000
+
+            byte    %11111000
+            byte    %10000000
+            byte    %10000000
+            byte    %11110000
+            byte    %00001000
+            byte    %10001000
+            byte    %01110000
+
+            byte    %00100000
+            byte    %01000000
+            byte    %10000000
+            byte    %11110000
+            byte    %10001000
+            byte    %10001000
+            byte    %01110000
+
+            byte    %11111000
+            byte    %00001000
+            byte    %00010000
+            byte    %00100000
+            byte    %00100000
+            byte    %00100000
+            byte    %00100000
+
+            byte    %01110000
+            byte    %10001000
+            byte    %10001000
+            byte    %01110000
+            byte    %10001000
+            byte    %10001000
+            byte    %01110000
+            // 9
+            byte    %01110000
+            byte    %10001000
+            byte    %10001000
+            byte    %01111000
+            byte    %00001000
+            byte    %00010000
+            byte    %00100000
+
+            byte    %00000011
+            byte    %00000000
+            byte    %01000000
+            byte    %00000000
+            byte    %01000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000011
+            byte    %00000000
+            byte    %01000000
+            byte    %00000000
+            byte    %01000000
+            byte    %10000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00011000
+            byte    %01100000
+            byte    %11000000
+            byte    %01100000
+            byte    %00011000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %11111000
+            byte    %00000000
+            byte    %11111000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %11000000
+            byte    %00110000
+            byte    %00011000
+            byte    %00110000
+            byte    %11000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+            byte    %00000000
+
+            byte    %01110000
+            byte    %10001000
+            byte    %10001000
+            byte    %11111000
+            byte    %10001000
+            byte    %10001000
+            byte    %10001000
+
+            byte    %11110000
+            byte    %10001000
+            byte    %10001000
+            byte    %11110000
+            byte    %10001000
+            byte    %10001000
+            byte    %11110000
+
+            byte    %01110000
+            byte    %10001000
+            byte    %10000000
+            byte    %10000000
+            byte    %10000000
+            byte    %10001000
+            byte    %01110000
+
+            byte    %11100000
+            byte    %10010000
+            byte    %10001000
+            byte    %10001000
+            byte    %10001000
+            byte    %10010000
+            byte    %11100000
+
+            byte    %11111000
+            byte    %10000000
+            byte    %10000000
+            byte    %11111000
+            byte    %10000000
+            byte    %10000000
+            byte    %11111000
+
+            byte    %11111000
+            byte    %10000000
+            byte    %10000000
+            byte    %11100000
+            byte    %10000000
+            byte    %10000000
+            byte    %10000000
+
+            byte    %01110000
+            byte    %10001000
+            byte    %10000000
+            byte    %10111000
+            byte    %10001000
+            byte    %10001000
+            byte    %01110000
+
+            byte    %10001000
+            byte    %10001000
+            byte    %10001000
+            byte    %11111000
+            byte    %10001000
+            byte    %10001000
+            byte    %10001000
+
+            byte    %11111000
+            byte    %00100000
+            byte    %00100000
+            byte    %00100000
+            byte    %00100000
+            byte    %00100000
+            byte    %11111000
+
+            byte    %11111000
+            byte    %00100000
+            byte    %00100000
+            byte    %00100000
+            byte    %10100000
+            byte    %10100000
+            byte    %01100000
+
+            byte    %10001000
+            byte    %10010000
+            byte    %10100000
+            byte    %11000000
+            byte    %10100000
+            byte    %10010000
+            byte    %10001000
+
+            byte    %10000000
+            byte    %10000000
+            byte    %10000000
+            byte    %10000000
+            byte    %10000000
+            byte    %10000000
+            byte    %11111000
+
+            byte    %10001000
+            byte    %11011000
+            byte    %10101000
+            byte    %10001000
+            byte    %10001000
+            byte    %10001000
+            byte    %10001000
+
+            byte    %10001000
+            byte    %10001000
+            byte    %11001000
+            byte    %10101000
+            byte    %10011000
+            byte    %10001000
+            byte    %10001000
+
+            byte    %01110000
+            byte    %10001000
+            byte    %10001000
+            byte    %10001000
+            byte    %10001000
+            byte    %10001000
+            byte    %01110000
+
+            byte    %11110000
+            byte    %10001000
+            byte    %10001000
+            byte    %11110000
+            byte    %10000000
+            byte    %10000000
+            byte    %10000000
+
+            byte    %01110000
+            byte    %10001000
+            byte    %10001000
+            byte    %10001000
+            byte    %10001000
+            byte    %10011000
+            byte    %01110000
+
+            byte    %11110000
+            byte    %10001000
+            byte    %10001000
+            byte    %11110000
+            byte    %10100000
+            byte    %10010000
+            byte    %10001000
+
+            byte    %01110000
+            byte    %10001000
+            byte    %10000000
+            byte    %01110000
+            byte    %00001000
+            byte    %10001000
+            byte    %01110000
+
+            byte    %11111000
+            byte    %00100000
+            byte    %00100000
+            byte    %00100000
+            byte    %00100000
+            byte    %00100000
+            byte    %00100000
+
+            byte    %10001000
+            byte    %10001000
+            byte    %10001000
+            byte    %10001000
+            byte    %10001000
+            byte    %10001000
+            byte    %01110000
+
+            byte    %10001000
+            byte    %10001000
+            byte    %10001000
+            byte    %10001000
+            byte    %10001000
+            byte    %01010000
+            byte    %00100000
+
+            byte    %10001000
+            byte    %10001000
+            byte    %10001000
+            byte    %10001000
+            byte    %10101000
+            byte    %10101000
+            byte    %01010000
+
+            byte    %10001000
+            byte    %10001000
+            byte    %01010000
+            byte    %00100000
+            byte    %01010000
+            byte    %10001000
+            byte    %10001000
+
+            byte    %10001000
+            byte    %10001000
+            byte    %01010000
+            byte    %00100000
+            byte    %00100000
+            byte    %00100000
+            byte    %00100000
+
+            byte    %11111000
+            byte    %00001000
+            byte    %00010000
+            byte    %00100000
+            byte    %01000000
+            byte    %10000000
+            byte    %11111000
 
 font6x8
             byte    6, 8
