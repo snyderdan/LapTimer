@@ -29,17 +29,21 @@ VAR
 
   long SystemTime
 
+  long d1SensorPin
   long d1LapNum
   long d1LapStart
   long d1DeltaTime
   long d1LastTime
   long d1BestTime
+  long d1SysTimePtr
 
+  long d2SensorPin
   long d2LapNum
   long d2LapStart
   long d2DeltaTime
   long d2LastTime
   long d2BestTime
+  long d2SysTimePtr
 
   long fontTable[6]
 
@@ -60,40 +64,21 @@ PUB Start | i, states, tempTime
   cognew(@time_keeper, @SystemTime)
   cognew(@display_driver, @pixels)
 
+  d1SensorPin   := D1_SENSOR
+  d1SysTimePtr  := @SystemTime
+  cognew(@driver_monitor, @d1SensorPin)
+
+  d2SensorPin   := D2_SENSOR
+  d2SysTimePtr  := @SystemTime
+  cognew(@driver_monitor, @d2SensorPin)
+
   _pixels := @pixels
   fontTable[0] := @font4x5
-  fontTable[1] := 0
-  fontTable[2] := @font4x6
-  fontTable[3] := @font5x7
-  fontTable[4] := @font6x8
-  fontTable[5] := 0
+  fontTable[1] := @font4x6
+  fontTable[2] := @font5x7
+  fontTable[3] := @font6x8
   font_table := @fontTable
   cognew(@ui_manager, @SystemTime)
-
-  systime_adr  := @SystemTime
-  sensor_pin   := D1_SENSOR
-  cognew(@driver_monitor, @d1LapNum)
-
-  waitcnt(20000 + cnt)  ' allow ample time for cog to initialize
-
-  sensor_pin   := D2_SENSOR
-  lastlap_adr  := @d2LastTime
-  bestlap_adr  := @d2BestTime
-  lapcnt_adr   := @d2LapNum
-  'cognew(@driver_monitor, 0)
-
-  repeat
-    if (ina[1] == 1)
-       d1LapNum += 1
-       tempTime := SystemTime - d1LapStart
-       d1LapStart := SystemTime
-       if d1LastTime > 0
-         d1DeltaTime := d1LastTime - tempTime
-
-       d1LastTime := tempTime
-       if (d1LastTime < d1BestTime) or (d1BestTime == 0)
-         d1BestTime := d1LastTime
-       waitcnt(80000000 +cnt)
 
 
 DAT TimeKeeper
@@ -114,59 +99,165 @@ timeMS      long    0
 nextPhase   res     1
 timeMSHub   res     1
 
+DAT DriverMonitor
+'  long d1SensorPin
+'  long d1LapNum        - updates each lap
+'  long d1LapStart      - updates each lap
+'  long d1DeltaTime     - updates each lap
+'  long d1LastTime      - updates each lap
+'  long d1BestTime      - updated sometimes
+'  long d1SysTimePtr
+            org     0
+driver_monitor
+            rdlong  sensor_pin, PAR
+
+            add     PAR, #4
+            mov     lapcnt_adr, PAR
+
+            add     PAR, #4
+            mov     lapstrt_adr, PAR
+
+            add     PAR, #4
+            mov     delta_adr, PAR
+
+            add     PAR, #4
+            mov     lastlap_adr, PAR
+
+            add     PAR, #4
+            mov     bestlap_adr, PAR
+
+            add     PAR, #4
+            mov     systime_adr, PAR
+
+start_loop
+            rdlong  lapstart, systime_adr       ' get system time
+            test    INA, sensor_pin  wz         ' test sensor pin
+            wrlong  lapstart, lapstrt_adr       ' write lap start to hub
+      if_nz jmp     #start_loop                 ' if pin is high, continue waiting
+
+monitor_loop
+            waitpeq sensor_pin, sensor_pin      ' wait until pin is high (beam is unbroken)
+            waitpne sensor_pin, sensor_pin      ' wait until pin is low (beam broken)
+
+            mov     lapdelta, lastlap           ' move last lap time to delta
+            rdlong  lastlap, systime_adr        ' read current time
+
+            mov     tmp, lastlap                ' copy current time
+            sub     lastlap, lapstart           ' calculate time taken for last lap
+            wrlong  lastlap, lastlap_adr        ' write last lap time to hub
+
+            sub     lapdelta, lastlap           ' calculate lap delta
+            add     lapcnt, #1                  ' increment lap count
+            wrlong  lapcnt, lapcnt_adr          ' write lap counter to hub
+
+            mov     lapstart, tmp               ' copy new lap start
+            wrlong  lapstart, lapstrt_adr       ' write lap start time to hub
+
+            test    bestlap, bestlap    wz      ' check if there was a previous best lap
+    if_z    mov     bestlap, lastlap            ' if not, set last lap to best lap
+            wrlong  lapdelta, delta_adr         ' write lap delta to hub
+
+            cmp     lastlap, bestlap    wc      ' compare last lap to best lap
+    if_c    mov     bestlap, lastlap            ' if new best, set it
+            wrlong  bestlap, bestlap_adr        ' write best lap
+
+            jmp     #monitor_loop
+
+
+neg_one     long    $FFFF_FFFF
+sensor_pin  long    0
+lastlap_adr long    0
+lapstrt_adr long    0
+delta_adr   long    0
+bestlap_adr long    0
+lapcnt_adr  long    0
+systime_adr long    0
+lapcnt      long    0
+bestlap     long    0
+lapdelta    res     1
+lastlap     res     1
+lapstart    res     1
+tmp         res     1
+            fit
+
 DAT UIManager
 
             org     0
 ui_manager
-            mov     fontsize, #0
-            mov     y, #1
-            mov     x, #10
+            mov     fontsize, #2
+            mov     y, #0
+            mov     x, #7
             call    #setfont
-            mov     char, #23
-            call    #drawchar
-            mov     char, #12
-            call    #drawchar
-            mov     char, #27
-            call    #drawchar
-            mov     char, #38
-            call    #drawchar
-            mov     char, #31
-            call    #drawchar
-            mov     char, #20
-            call    #drawchar
-            mov     char, #24
-            call    #drawchar
-            mov     char, #16
-            call    #drawchar
-            mov     char, #29
-            call    #drawchar
+            mov     char, #"L"
+            call    #printchar
+            mov     char, #"A"
+            call    #printchar
+            mov     char, #"P"
+            call    #printchar
+            mov     char, #" "
+            call    #printchar
+            mov     char, #"T"
+            call    #printchar
+            mov     char, #"I"
+            call    #printchar
+            mov     char, #"M"
+            call    #printchar
+            mov     char, #"E"
+            call    #printchar
+            mov     char, #"R"
+            call    #printchar
 
             mov     x, #64
             mov     y, #8
-            mov     color, yellow
+            mov     color, blue
 drawline
             sub     x, #1
             call    #drawpixel
+            sub     y, #1
+            call    #drawpixel
             add     x, #1
+            add     y, #1
             djnz    x, #drawline
 
-loopy
-            mov     fontsize, #4
-            call    #setfont
+            mov     y, #23
+            'mov     color, red
+            mov     x, #31
+drawline2
+            add     y, #8
+            call    #drawpixel
+            add     x, #1
+            call    #drawpixel
+            sub     x, #1
+            sub     y, #8
+            djnz    y, #drawline2
+
+lbl
             mov     x, #0
-            mov     y, #10
+            mov     y, #9
+            call    #showtimes
+            mov     x, #33
+            mov     y, #9
+            call    #showtimes
+            jmp     #lbl
+
+showtimes
+            mov     :x_origin, x
+            mov     :y_origin, y
+            mov     fontsize, #3
+            call    #setfont
             mov     color, white
             rdlong  systime, PAR
-            mov     R0, d1params
-            add     R0, #4
-            rdlong  R0, R0
-            sub     systime, R0
+            'mov     R0, d1params
+            'add     R0, #4
+            'rdlong  R0, R0
+            'sub     systime, R0
             mov     ttp, systime
             call    #print_timer
 
-            mov     fontsize, #2
+            mov     fontsize, #1
             call    #setfont
-            mov     x, #8
+            mov     x, :x_origin
+            add     x, #8
             add     y, #9
             mov     R0, d1params
             add     R0, #16
@@ -180,17 +271,24 @@ loopy
             shl     ttp, #1   wc, wz
             sar     ttp, #1
       if_c  mov     color, red
-      if_c  mov     char, #12
+      if_c  mov     char, #"+"
       if_nc mov     color, green
-      if_nc mov     char, #13
+      if_nc mov     char, #"-"
       if_z  mov     color, white
-      if_z  mov     char, #14
+      if_z  mov     char, #" "
             abs     ttp, ttp
-            mov     x, #4
+            mov     x, :x_origin
+            add     x, #4
             add     y, #7
-            call    #drawchar
+            call    #printchar
             call    #print_timer
-            jmp     #loopy
+            jmp     #showtimes_ret
+:x_origin   long    0
+:y_origin   long    0
+driver      long    0
+
+showtimes_ret
+            ret
 
 print_timer
             cmp     ttp, time_limit  wc, wz
@@ -216,22 +314,22 @@ print_timer
             mov     minutes, quotient
             ' actually print time
             mov     char, minutes   ' minutes
-            call    #drawchar
+            call    #printnum
 
-            mov     char, #10       ' :
-            call    #drawchar
+            mov     char, #":"      ' :
+            call    #printchar
 
             mov     char, tens_sec  ' 10's of seconds
-            call    #drawchar
+            call    #printnum
 
             mov     char, ones_sec  ' 1's of seconds
-            call    #drawchar
+            call    #printnum
 
-            mov     char, #11       ' .
-            call    #drawchar
+            mov     char, #"."      ' .
+            call    #printchar
                                     ' tenths of seconds
             mov     char, tenths_sec
-            call    #drawchar
+            call    #printnum
 print_timer_ret
             ret
 time_limit  long    599999
@@ -244,10 +342,26 @@ hunths_sec  long    0
 thous_sec   long    0
 
 printstr
-            rdbyte  char, stringptr
+            rdbyte  char, stringptr wz
+      if_z  jmp     #printstr_ret
             add     stringptr, #1
-            call    #drawchar
+            call    #printchar
+            jmp     #printstr
+printstr_ret
+            ret
 
+
+printchar
+            sub     char, #" "
+            call    #drawchar
+printchar_ret
+            ret
+
+printnum
+            add     char, #16          ' 16 = "0" - " "
+            call    #drawchar
+printnum_ret
+            ret
 
 drawchar
             mov     R4, y
@@ -378,6 +492,7 @@ divisor     long    0
 quotient    long    0
 remainder   long    0
 
+off         long    $0000
 white       long    $0FFF
 red         long    $0F00
 green       long    $00F0
@@ -386,8 +501,11 @@ yellow      long    $0FF0
 cyan        long    $00FF
 magenta     long    $0F0F
 
-d1params    long    0
+'d1params    long    0
 
+systime_ar res     1
+d1params    res     1
+d2params    res     1
 systime     res     1
 R0          res     1
 R1          res     1
@@ -533,59 +651,6 @@ R01          res     1
 R11          res     1
 R21          res     1
 row_data    res     32
-            fit
-
-DAT DriverMonitor
-
-            org     0
-driver_monitor
-            mov     lapcnt_adr, PAR
-            add     PAR, #4
-            mov     lapstrt_adr, PAR
-            add     PAR, #4
-            mov     delta_adr, PAR
-            mov     lastlap_adr, PAR
-            add     PAR, #4
-            mov     bestlap_adr, PAR
-
-            rdlong  lapstart, systime_adr
-
-monitor_loop
-            waitpne sensor_pin, sensor_pin
-
-            rdlong  lastlap, systime_adr
-            mov     tmp, lastlap
-            sub     lastlap, lapstart
-            mov     lapstart, tmp
-
-            test    bestlap, bestlap    wz
-    if_z    mov     bestlap, lastlap
-
-            cmp     lastlap, bestlap    wc
-    if_c    mov     bestlap, lastlap
-
-            add     lapcnt, #1
-
-            wrlong  lastlap, lastlap_adr
-            wrlong  bestlap, bestlap_adr
-            wrlong  lapcnt, lapcnt_adr
-
-            jmp     #monitor_loop
-
-
-neg_one     long    $FFFF_FFFF
-sensor_pin  long    0
-lastlap_adr long    0
-lapstrt_adr long    0
-delta_adr   long    0
-bestlap_adr long    0
-lapcnt_adr  long    0
-systime_adr long    0
-lapcnt      long    0
-bestlap     long    0
-lastlap     res     1
-lapstart    res     1
-tmp         res     1
             fit
 
 DAT
