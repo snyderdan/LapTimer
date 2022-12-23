@@ -3,20 +3,23 @@ CON
   _CLKMODE = XTAL1 + PLL16X
   _CLKFREQ = 80_000_000
   D1_SENSOR = 1 << 0
-  D2_SENSOR = 1 << 5
-  OE_PIN = 1 << 10
-  LATCH_PIN = 1 << 0
-  R1_PIN = 1 << 22
-  G1_PIN = 1 << 23
-  B1_PIN = 1 << 24
-  R2_PIN = 1 << 18
-  G2_PIN = 1 << 19
-  B2_PIN = 1 << 20
-  CLK_PIN = 1 << 12
-  ADA_PIN = 1 << 16
-  ADB_PIN = 1 << 4
-  ADC_PIN = 1 << 14
-  ADD_PIN = 1 << 2
+  D2_SENSOR = 1 << 1
+
+  R1_PIN = 1 << 3
+  G1_PIN = 1 << 7
+  B1_PIN = 1 << 11
+  R2_PIN = 1 << 2
+  G2_PIN = 1 << 6
+  B2_PIN = 1 << 10
+
+  ADA_PIN = 1 << 14
+  ADB_PIN = 1 << 15
+  ADC_PIN = 1 << 16
+  ADD_PIN = 1 << 17
+
+  OE_PIN = 1 << 22
+  CLK_PIN = 1 << 24
+  LATCH_PIN = 1 << 26
 
   ROWS = 32
   COLS = 64
@@ -138,7 +141,7 @@ ui_manager
             mov     char, #29
             call    #drawchar
 
-            mov     x, #63
+            mov     x, #64
             mov     y, #8
             mov     color, yellow
 drawline
@@ -456,7 +459,7 @@ next_pix    ' first pixel (right)
       if_c  or      OUTA, green2
             shr     toprow, #4 wc
       if_c  or      OUTA, red2
-            shr     toprow, #1
+            shr     toprow, #4
 
             shr     botrow, #4 wc
       if_c  or      OUTA, blue1
@@ -464,7 +467,7 @@ next_pix    ' first pixel (right)
       if_c  or      OUTA, green1
             shr     botrow, #4 wc
       if_c  or      OUTA, red1
-            shr     botrow, #1
+            shr     botrow, #4
 
             or      OUTA, tick
             and     OUTA, tock
@@ -1122,7 +1125,7 @@ font5x7
             byte    %00000000
             byte    %00000000
             byte    %00000000
-            // 0
+            ' 0
             byte    %01110000
             byte    %10001000
             byte    %10001000
@@ -1194,7 +1197,7 @@ font5x7
             byte    %10001000
             byte    %10001000
             byte    %01110000
-            // 9
+            ' 9
             byte    %01110000
             byte    %10001000
             byte    %10001000
