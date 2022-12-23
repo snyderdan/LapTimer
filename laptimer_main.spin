@@ -208,35 +208,35 @@ ui_manager
             call    #printchar
 
             mov     x, #64
-            mov     y, #8
-            mov     color, blue
+            mov     y, #9
+            mov     color, yellow
 drawline
             sub     x, #1
-            call    #drawpixel
+            'call    #drawpixel
             sub     y, #1
             call    #drawpixel
             add     x, #1
             add     y, #1
             djnz    x, #drawline
 
-            mov     y, #23
+            mov     y, #24
             'mov     color, red
             mov     x, #31
 drawline2
-            add     y, #8
-            call    #drawpixel
+            add     y, #7
+            'call    #drawpixel
             add     x, #1
             call    #drawpixel
             sub     x, #1
-            sub     y, #8
+            sub     y, #7
             djnz    y, #drawline2
 
 lbl
             mov     x, #0
-            mov     y, #9
+            mov     y, #10
             call    #showtimes
             mov     x, #33
-            mov     y, #9
+            mov     y, #10
             call    #showtimes
             jmp     #lbl
 
