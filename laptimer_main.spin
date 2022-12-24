@@ -21,6 +21,10 @@ CON
   CLK_PIN = 1 << 24
   LATCH_PIN = 1 << 26
 
+  BTN_PIN = 1 << 28
+  ENCA_PIN = 1 << 30
+  ENCB_PIN = 1 << 32
+
   ROWS = 32
   COLS = 64
 
@@ -72,6 +76,8 @@ PUB Start | i, states, tempTime
   d2SysTimePtr  := @SystemTime
   cognew(@driver_monitor, @d2SensorPin)
 
+  lts := @laptimerstr
+  nas := @notavailstr
   _pixels := @pixels
   fontTable[0] := @font4x5
   fontTable[1] := @font4x6
@@ -79,6 +85,22 @@ PUB Start | i, states, tempTime
   fontTable[3] := @font6x8
   font_table := @fontTable
   cognew(@ui_manager, @SystemTime)
+
+  repeat
+
+    if ina[0] == 0
+      pixels[0] := $0F00
+      'waitpne(D1_SENSOR, 0, 0)
+    else
+      pixels[0] := $0
+      'waitpne(D1_SENSOR, D1_SENSOR, 0)
+
+    if ina[1] == 0
+      pixels[63] := $0F00
+      'waitpne(D2_SENSOR, 0, 0)
+    else
+      pixels[63] := $0
+      'waitpne(D2_SENSOR, D2_SENSOR, 0)
 
 
 DAT TimeKeeper
@@ -110,34 +132,54 @@ DAT DriverMonitor
             org     0
 driver_monitor
             rdlong  sensor_pin, PAR
-
-            add     PAR, #4
             mov     lapcnt_adr, PAR
+            add     lapcnt_adr, #4
 
-            add     PAR, #4
             mov     lapstrt_adr, PAR
-
-            add     PAR, #4
+            add     lapstrt_adr, #8
             mov     delta_adr, PAR
+            add     delta_adr, #12
 
-            add     PAR, #4
             mov     lastlap_adr, PAR
-
-            add     PAR, #4
-            mov     bestlap_adr, PAR
-
-            add     PAR, #4
+            add     lastlap_adr, #16
             mov     systime_adr, PAR
+            add     systime_adr, #24
+
+            rdlong  systime_adr, systime_adr
+            mov     bestlap_adr, PAR
+            add     bestlap_adr, #20
 
 start_loop
+' due to imperfect behavior entering and exiting sensor, we need to take
+' a good number of samples to verify the sensor has gone off, rendering
+' waitpeq/ne unusable. 1024 samples takes ~200uS which is acceptable
+:not_low
             rdlong  lapstart, systime_adr       ' get system time
-            test    INA, sensor_pin  wz         ' test sensor pin
+            mov     count, threshold
             wrlong  lapstart, lapstrt_adr       ' write lap start to hub
-      if_nz jmp     #start_loop                 ' if pin is high, continue waiting
+:its_low
+            mov     tmp, INA
+            test    tmp, sensor_pin   wz
+      if_nz jmp     #:not_low
+            djnz    count, #:its_low
 
 monitor_loop
-            waitpeq sensor_pin, sensor_pin      ' wait until pin is high (beam is unbroken)
-            waitpne sensor_pin, sensor_pin      ' wait until pin is low (beam broken)
+
+:not_high   ' wait until pin is high (beam is unbroken)
+            mov     count, threshold
+:its_high
+            mov     tmp, INA
+            test    tmp, sensor_pin   wz
+      if_z  jmp     #:not_high
+            djnz    count, #:its_high
+
+:not_low    ' wait until pin is low (beam broken)
+            mov     count, threshold
+:its_low
+            mov     tmp, INA
+            test    tmp, sensor_pin   wz
+      if_nz jmp     #:not_low
+            djnz    count, #:its_low
 
             mov     lapdelta, lastlap           ' move last lap time to delta
             rdlong  lastlap, systime_adr        ' read current time
@@ -164,8 +206,10 @@ monitor_loop
             jmp     #monitor_loop
 
 
+threshold   long    1024
+something   long    2800
+count       long    0
 neg_one     long    $FFFF_FFFF
-sensor_pin  long    0
 lastlap_adr long    0
 lapstrt_adr long    0
 delta_adr   long    0
@@ -174,6 +218,7 @@ lapcnt_adr  long    0
 systime_adr long    0
 lapcnt      long    0
 bestlap     long    0
+sensor_pin  long    2
 lapdelta    res     1
 lastlap     res     1
 lapstart    res     1
@@ -184,89 +229,105 @@ DAT UIManager
 
             org     0
 ui_manager
+            mov     systime_ptr, PAR
+            mov     d1params, PAR
+            mov     d2params, PAR
+            add     d1params, #4
+            add     d2params, #32
+
             mov     fontsize, #2
             mov     y, #0
             mov     x, #7
             call    #setfont
-            mov     char, #"L"
-            call    #printchar
-            mov     char, #"A"
-            call    #printchar
-            mov     char, #"P"
-            call    #printchar
-            mov     char, #" "
-            call    #printchar
-            mov     char, #"T"
-            call    #printchar
-            mov     char, #"I"
-            call    #printchar
-            mov     char, #"M"
-            call    #printchar
-            mov     char, #"E"
-            call    #printchar
-            mov     char, #"R"
-            call    #printchar
+            mov     stringptr, lts
+            call    #printstr
 
             mov     x, #64
-            mov     y, #9
+            mov     y, #8
             mov     color, yellow
 drawline
             sub     x, #1
-            'call    #drawpixel
-            sub     y, #1
             call    #drawpixel
             add     x, #1
-            add     y, #1
             djnz    x, #drawline
 
             mov     y, #24
-            'mov     color, red
-            mov     x, #31
+            mov     x, #32
 drawline2
             add     y, #7
-            'call    #drawpixel
-            add     x, #1
             call    #drawpixel
-            sub     x, #1
             sub     y, #7
             djnz    y, #drawline2
 
 lbl
             mov     x, #0
             mov     y, #10
+            mov     driver, d1params
             call    #showtimes
             mov     x, #33
             mov     y, #10
+            mov     driver, d2params
             call    #showtimes
             jmp     #lbl
 
+' driver ptr points to:
+'  long dXSensorPin
+'  long dXLapNum
+'  long dXLapStart
+'  long dXDeltaTime
+'  long dXLastTime
+'  long dXBestTime
 showtimes
             mov     :x_origin, x
             mov     :y_origin, y
             mov     fontsize, #3
             call    #setfont
             mov     color, white
-            rdlong  systime, PAR
-            'mov     R0, d1params
-            'add     R0, #4
-            'rdlong  R0, R0
-            'sub     systime, R0
+            mov     R0, driver
+            add     R0, #4
+            rdlong  :lapcnt, R0
+            rdlong  systime, systime_ptr
+
+            ' print current time
+            mov     R0, driver
+            add     R0, #8
+            rdlong  R0, R0
+            sub     systime, R0
             mov     ttp, systime
             call    #print_timer
 
+            ' print best lap
             mov     fontsize, #1
             call    #setfont
             mov     x, :x_origin
             add     x, #8
             add     y, #9
-            mov     R0, d1params
-            add     R0, #16
+            test    :lapcnt, :lapcnt wz
+      if_nz jmp     #:printbest
+            mov     stringptr, nas
+            call    #printstr
+            jmp     #:checkdelta
+:printbest
+            mov     R0, driver
+            add     R0, #20
             rdlong  ttp, R0
             call    #print_timer
 
-            mov     color, green
-            mov     R0, d1params
-            add     R0, #8
+:checkdelta
+            ' print delta
+            mov     x, :x_origin
+            add     x, #4
+            add     y, #7
+            cmp     :lapcnt, #1 wz,wc
+      if_a  jmp     #:printdelta
+            add     x, #4
+            mov     stringptr, nas
+            call    #printstr
+            jmp     #showtimes_ret
+
+:printdelta
+            mov     R0, driver
+            add     R0, #12
             rdlong  ttp, R0
             shl     ttp, #1   wc, wz
             sar     ttp, #1
@@ -274,17 +335,17 @@ showtimes
       if_c  mov     char, #"+"
       if_nc mov     color, green
       if_nc mov     char, #"-"
+      if_nc sub     x, #1
       if_z  mov     color, white
-      if_z  mov     char, #" "
+      if_z  mov     char, #"*"
             abs     ttp, ttp
-            mov     x, :x_origin
-            add     x, #4
-            add     y, #7
             call    #printchar
             call    #print_timer
+
             jmp     #showtimes_ret
 :x_origin   long    0
 :y_origin   long    0
+:lapcnt     long    0
 driver      long    0
 
 showtimes_ret
@@ -500,10 +561,10 @@ blue        long    $000F
 yellow      long    $0FF0
 cyan        long    $00FF
 magenta     long    $0F0F
+lts         long    0
+nas         long    0
 
-'d1params    long    0
-
-systime_ar res     1
+systime_ptr res     1
 d1params    res     1
 d2params    res     1
 systime     res     1
@@ -530,7 +591,7 @@ next_row
             or      OUTA, disable       ' disable output before switch
             add     row_addr, #1
             and     row_addr, #%1111
-
+writeaddr
             test    row_addr, #1    wz
             muxz    OUTA, addr_a
             test    row_addr, #2    wz
@@ -631,8 +692,11 @@ addr_a      long    ADA_PIN
 addr_b      long    ADB_PIN
 addr_c      long    ADC_PIN
 addr_d      long    ADD_PIN
-frame_wait  long    (_CLKFREQ / 2000)
-addr_wait   long    (_CLKFREQ / 1000000)
+' frame_wait should be somewhere ~1_600 and ~12_000
+' this determines both framerate and brightness, with higher values being dimmer
+frame_wait  long    (_CLKFREQ / 12_000)
+' fixed delay for address propagation
+addr_wait   long    (_CLKFREQ / 1_000_000)
 row_offset  long    2048
 zeros       long    0
 row_addr    long    0
@@ -655,7 +719,9 @@ row_data    res     32
 
 DAT
 
-            byte    "Starting here"
+laptimerstr byte    "LAP TIMER", 0
+notavailstr byte    "-:--.-", 0
+
 font4x5
             byte    4, 5
             byte    %01100000
@@ -1115,7 +1181,7 @@ font4x6
             byte    %00000000
             byte    %00000000
             ' *
-            byte    %00000000
+            byte    %00000011
             byte    %00000000
             byte    %00000000
             byte    %00000000
@@ -1136,9 +1202,9 @@ font4x6
             byte    %00000000
             byte    %00000000
             ' -
-            byte    %00000011
             byte    %00000000
-            byte    %11100000
+            byte    %00000000
+            byte    %01110000
             byte    %00000000
             byte    %00000000
             byte    %00000000
@@ -1228,8 +1294,8 @@ font4x6
             byte    %01100000
             ' :
             byte    %00000001
-            byte    %00000000
             byte    %10000000
+            byte    %00000000
             byte    %00000000
             byte    %10000000
             byte    %00000000
@@ -1497,7 +1563,7 @@ font5x7
             ' ;
             byte    %00000011
             byte    %00000000
-            byte    %01000000
+            byte    %00000000
             byte    %00000000
             byte    %01000000
             byte    %10000000
