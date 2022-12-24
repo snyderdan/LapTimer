@@ -21,12 +21,15 @@ CON
   CLK_PIN = 1 << 24
   LATCH_PIN = 1 << 26
 
-  BTN_PIN = 1 << 28
-  ENCA_PIN = 1 << 30
-  ENCB_PIN = 1 << 32
+  BTN_PIN = 1 << 23
+  ENCA_PIN = 1 << 25
+  ENCB_PIN = 1 << 27
 
   ROWS = 32
   COLS = 64
+
+OBJ
+  eeprom : "Propeller Eeprom"
 
 
 VAR
@@ -49,11 +52,18 @@ VAR
   long d2BestTime
   long d2SysTimePtr
 
+  long mode
+  long brightness
+  long brightwait
+  long encoderpos
+
+  long debounceTime
+
   long fontTable[6]
 
   word pixels[2048]
 
-PUB Start | i, states, tempTime
+PUB Start | lastpos, newpos
   ' Things that need to happen:
   '  1) Start time keeper core
   '  2) Start display driver core
@@ -66,6 +76,10 @@ PUB Start | i, states, tempTime
   ' timing laps, racing, or in the UI. This will determine our priorities
 
   cognew(@time_keeper, @SystemTime)
+
+  CalcBrightWait
+
+  bright_adr := @brightwait
   cognew(@display_driver, @pixels)
 
   d1SensorPin   := D1_SENSOR
@@ -86,7 +100,12 @@ PUB Start | i, states, tempTime
   font_table := @fontTable
   cognew(@ui_manager, @SystemTime)
 
+  cognew(@EncoderMonitor, @encoderpos)
+
   repeat
+    newpos := encoderpos / 4
+    SetBrightness(newpos - lastpos)
+    lastpos := newpos
 
     if ina[0] == 0
       pixels[0] := $0F00
@@ -102,6 +121,71 @@ PUB Start | i, states, tempTime
       pixels[63] := $0
       'waitpne(D2_SENSOR, D2_SENSOR, 0)
 
+PRI SetBrightness(delta)
+  brightness := ((brightness + delta) #> 0) <# 21
+  CalcBrightWait
+  eeprom.VarBackup(@brightness, @brightness + 3)
+
+PRI CalcBrightWait
+  brightwait := _CLKFREQ / (((20 - brightness) * 520) + 1600)
+
+DAT EncoderMonitor
+            org     0
+            mov     pos_adr, PAR
+            wrlong  position, pos_adr
+getsample
+            and     state, #%11
+            mov     sample, INA
+            test    sample, a_pin wz
+            muxz    state, #%100
+
+            test    sample, b_pin wz
+            muxz    state, #%1000
+            mov     jumpto, state
+            add     jumpto, #jmptable
+
+            jmp     jumpto
+jmptable                         '  B1 A1 B0 A0
+            jmp     #nothing     '  0  0  0  0   no movement
+            jmp     #advance1    '  0  0  0  1   +1
+            jmp     #back1       '  0  0  1  0   -1
+            jmp     #advance2    '  0  0  1  1   +2
+            jmp     #back1       '  0  1  0  0   -1
+            jmp     #nothing     '  0  1  0  1   no movement
+            jmp     #back2       '  0  1  1  0   -2
+            jmp     #advance1    '  0  1  1  1   +1
+            jmp     #advance1    '  1  0  0  0   +1
+            jmp     #back2       '  1  0  0  1   -2
+            jmp     #nothing     '  1  0  1  0   no movement
+            jmp     #back1       '  1  0  1  1   -1
+            jmp     #advance2    '  1  1  0  0   +2
+            jmp     #back1       '  1  1  0  1   -1
+            jmp     #advance1    '  1  1  1  0   +1
+            jmp     #nothing     '  1  1  1  1   no movement
+
+advance2    add     position, #2
+            jmp     #nothing
+
+advance1    add     position, #1
+            jmp     #nothing
+
+back2       sub     position, #2
+            jmp     #nothing
+
+back1       sub     position, #1
+nothing
+            wrlong  position, pos_adr
+            shr     state, #2
+            jmp     #getsample
+
+a_pin       long    ENCA_PIN
+b_pin       long    ENCB_PIN
+both_pins   long    ENCA_PIN | ENCB_PIN
+position    long    0
+state       long    0
+sample      res     1
+jumpto      res     1
+pos_adr     res     1
 
 DAT TimeKeeper
 
@@ -602,6 +686,7 @@ writeaddr
             test    row_addr, #8    wz
             muxz    OUTA, addr_d
 
+            rdlong  frame_wait, bright_adr
             waitcnt waitfor, frame_wait ' need to wait approximately 1uS for address switch
 
 next_plane  ' next 'plane' of color depth for binary coded modulation
@@ -692,6 +777,7 @@ addr_a      long    ADA_PIN
 addr_b      long    ADB_PIN
 addr_c      long    ADC_PIN
 addr_d      long    ADD_PIN
+bright_adr  long    0
 ' frame_wait should be somewhere ~1_600 and ~12_000
 ' this determines both framerate and brightness, with higher values being dimmer
 frame_wait  long    (_CLKFREQ / 12_000)
