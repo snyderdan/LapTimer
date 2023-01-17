@@ -336,7 +336,7 @@ drawline
             djnz    x, #drawline
 
             mov     y, #24
-            mov     x, #32
+            mov     x, #31
 drawline2
             add     y, #7
             call    #drawpixel
@@ -348,7 +348,7 @@ lbl
             mov     y, #10
             mov     driver, d1params
             call    #showtimes
-            mov     x, #33
+            mov     x, #35
             mov     y, #10
             mov     driver, d2params
             call    #showtimes
@@ -438,10 +438,15 @@ showtimes_ret
 print_timer
             cmp     ttp, time_limit  wc, wz
       if_a  mov     ttp, time_limit
-            ' remove 1's and 10's place of ms
+            ' remove 1's place of ms
             mov     dividend, ttp
-            mov     divisor, #100
+            mov     divisor, #10
             call    #div
+            ' compute 100ths of seconds
+            mov     dividend, quotient
+            mov     divisor, #10
+            call    #div
+            mov     hunths_sec, remainder
             ' compute 10ths of seconds
             mov     dividend, quotient
             mov     divisor, #10
@@ -451,18 +456,18 @@ print_timer
             mov     dividend, quotient
             call    #div
             mov     ones_sec, remainder
-            ' compute 10's of seconds and minutes
+            ' compute 10's of seconds
             mov     dividend, quotient
-            mov     divisor, #6
+            mov     divisor, #10
             call    #div
             mov     tens_sec, remainder
             mov     minutes, quotient
             ' actually print time
             mov     char, minutes   ' minutes
-            call    #printnum
+            ' call    #printnum
 
             mov     char, #":"      ' :
-            call    #printchar
+            ' call    #printchar
 
             mov     char, tens_sec  ' 10's of seconds
             call    #printnum
@@ -475,9 +480,13 @@ print_timer
                                     ' tenths of seconds
             mov     char, tenths_sec
             call    #printnum
+
+            mov     char, hunths_sec
+            call    #printnum       ' hundreths of seconds
+
 print_timer_ret
             ret
-time_limit  long    599999
+time_limit  long    99999
 ttp         long    0
 minutes     long    0
 tens_sec    long    0
@@ -806,7 +815,7 @@ row_data    res     32
 DAT
 
 laptimerstr byte    "LAP TIMER", 0
-notavailstr byte    "-:--.-", 0
+notavailstr byte    "--.--", 0
 
 font4x5
             byte    4, 5
